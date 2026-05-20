@@ -47,7 +47,7 @@ class _BluetoothScanScreenState extends State<BluetoothScanScreen> {
     _receivedDataSubscription = _ble.receivedDataStream.listen((data) {
       setState(() {
         _batteryLevel = data;
-        _scanMessage = 'Устройство готово к регистрации. Заряд батареи: $data%';
+        _scanMessage = 'Устройство готово к регистрации.';
       });
     });
   }
@@ -276,32 +276,6 @@ class _BluetoothScanScreenState extends State<BluetoothScanScreen> {
                   child: Center(child: CircularProgressIndicator()),
                 )
               else if (_connectedDeviceName != null) ...[
-                if (_batteryLevel != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.green.shade200, width: 1.5),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.battery_charging_full, color: Colors.green.shade700),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Заряд батареи устройства: $_batteryLevel%',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green.shade800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
                 ElevatedButton(
                   onPressed: () =>
                       _navigateToRegistration(_connectedDeviceName, _connectedDeviceMac, _batteryLevel),
