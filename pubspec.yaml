@@ -1,0 +1,24 @@
+name: lysmi_app
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  flutter_blue_plus: ^1.8.1
+  permission_handler: ^12.0.1
+  sqflite: ^2.0.0
+  path_provider: ^2.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true

@@ -1,0 +1,125 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.accounts (
+  id uuid NOT NULL,
+  name text,
+  birthdate date,
+  residence text,
+  role_id bigint,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT accounts_pkey PRIMARY KEY (id),
+  CONSTRAINT accounts_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id),
+  CONSTRAINT accounts_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id)
+);
+CREATE TABLE public.device_versions (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  screen_x integer NOT NULL,
+  screen_y integer NOT NULL,
+  mode integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT device_versions_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.greetings (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  master_id uuid,
+  slave_id uuid,
+  sympathy integer CHECK (sympathy >= '-10'::integer AND sympathy <= 10),
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT greetings_pkey PRIMARY KEY (id),
+  CONSTRAINT greetings_master_id_fkey FOREIGN KEY (master_id) REFERENCES public.accounts(id),
+  CONSTRAINT greetings_slave_id_fkey FOREIGN KEY (slave_id) REFERENCES public.accounts(id)
+);
+CREATE TABLE public.pictures (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  version_id bigint,
+  mode integer NOT NULL,
+  file_path text NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT pictures_pkey PRIMARY KEY (id),
+  CONSTRAINT pictures_version_id_fkey FOREIGN KEY (version_id) REFERENCES public.device_versions(id)
+);
+CREATE TABLE public.roles (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  name text NOT NULL UNIQUE,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT roles_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.sounds (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  mode integer NOT NULL,
+  file_path text NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT sounds_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.units (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  btname character varying NOT NULL UNIQUE,
+  pairing_code text NOT NULL,
+  mfr integer,
+  version_id bigint,
+  created_at timestamp with time zone DEFAULT now(),
+  account_id uuid,
+  lost boolean DEFAULT false,
+  faulty boolean DEFAULT false,
+  CONSTRAINT units_pkey PRIMARY KEY (id),
+  CONSTRAINT units_version_id_fkey FOREIGN KEY (version_id) REFERENCES public.device_versions(id),
+  CONSTRAINT units_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.accounts(id)
+);
+
+CREATE OR REPLACE function handle_new_user()
+returns trigger as $$
+begin
+  insert into public.accounts (
+    id,
+    name,
+    role_id
+  )
+  values (
+    new.id,
+    coalesce(
+      new.raw_user_meta_data->>'name',
+      split_part(new.email, '@', 1)
+    ),
+    1
+  );
+
+  return new;
+end;
+$$ language plpgsql security definer;
+
+DROP TRIGGER IF EXISTS on_auth_user_created
+ON auth.users;
+
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute procedure handle_new_user();
+
+
+
+create index idx_units_account
+on units(account_id);
+
+create index idx_greetings_master
+on greetings(master_id);
+
+create index idx_greetings_slave
+on greetings(slave_id);
+
+
+alter table accounts enable row level security;
+alter table units enable row level security;
+alter table greetings enable row level security;
+
+
+
+create policy "Users own units"
+on units
+for select
+using (
+  auth.uid() = account_id
+);
+
+
+
+

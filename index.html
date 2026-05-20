@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Скачать приложение</title>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+      color: white;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(10px);
+      border-radius: 24px;
+      padding: 40px;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    }
+
+    .logo {
+      width: 100px;
+      height: 100px;
+      border-radius: 24px;
+      margin-bottom: 20px;
+      object-fit: cover;
+      background: white;
+    }
+
+    h1 {
+      font-size: 32px;
+      margin-bottom: 12px;
+    }
+
+    p {
+      color: #cbd5e1;
+      margin-bottom: 30px;
+      line-height: 1.6;
+    }
+
+    .download-btn {
+      display: inline-block;
+      width: 100%;
+      padding: 16px;
+      border-radius: 14px;
+      background: #3b82f6;
+      color: white;
+      text-decoration: none;
+      font-size: 18px;
+      font-weight: bold;
+      transition: 0.2s;
+    }
+
+    .download-btn:hover {
+      background: #2563eb;
+      transform: translateY(-2px);
+    }
+
+    .info {
+      margin-top: 20px;
+      font-size: 14px;
+      color: #94a3b8;
+    }
+
+    .android-note {
+      margin-top: 24px;
+      padding: 16px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.06);
+      text-align: left;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #cbd5e1;
+    }
+
+    code {
+      background: rgba(255,255,255,0.1);
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+
+    <!-- ЗАМЕНИТЕ logo.png НА СВОЙ ЛОГО -->
+    <img src="logo.png" alt="Logo" class="logo" />
+
+    <h1>Моё приложение</h1>
+
+    <p>
+      Скачайте последнюю версию приложения для Android.
+    </p>
+
+    <!-- ЗАМЕНИТЕ app-release.apk НА СВОЙ APK -->
+    <a class="download-btn" href="app-release.apk" download>
+      Скачать APK
+    </a>
+
+    <div class="android-note">
+      <strong>Если установка заблокирована:</strong><br><br>
+      Android → Настройки → Безопасность →
+      <code>Разрешить установку из неизвестных источников</code>
+    </div>
+
+    <div class="info">
+      Версия 1.0.0
+    </div>
+
+  </div>
+</body>
+</html>
