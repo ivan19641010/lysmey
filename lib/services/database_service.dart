@@ -20,29 +20,55 @@ class DatabaseService {
         ''');
       });
 
-      // Ensure 'mydevice' table exists in the database
       if (_db != null) {
+        // --- NEW SCHEMAS ---
+
+        // 1. self_accounts: always only one record after registration
         await _db!.execute('''
-          CREATE TABLE IF NOT EXISTS mydevice (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            macadress TEXT,
-            battery INTEGER
+          CREATE TABLE IF NOT EXISTS self_accounts (
+            id TEXT PRIMARY KEY,
+            phone TEXT,
+            password TEXT,
+            name TEXT UNIQUE,
+            email TEXT,
+            birthdate TEXT,
+            residence TEXT
           )
         ''');
-        try {
-          await _db!.execute('ALTER TABLE mydevice ADD COLUMN battery INTEGER');
-        } catch (_) {}
-      }
 
-      // Ensure 'mymeeteng' table exists in the database
-      if (_db != null) {
+        // 2. accounts
         await _db!.execute('''
-          CREATE TABLE IF NOT EXISTS mymeeteng (
+          CREATE TABLE IF NOT EXISTS accounts (
+            id TEXT PRIMARY KEY,
+            name TEXT UNIQUE,
+            birthdate TEXT,
+            residence TEXT,
+            active INTEGER DEFAULT 0,
+            sympathy INTEGER DEFAULT 0
+          )
+        ''');
+
+        // 3. self_units
+        await _db!.execute('''
+          CREATE TABLE IF NOT EXISTS self_units (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            mac TEXT,
-            owner_id TEXT
+            btname TEXT,
+            password TEXT,
+            version INTEGER DEFAULT 1,
+            lost INTEGER DEFAULT 0,
+            faulty INTEGER DEFAULT 0,
+            battery INTEGER,
+            macadress TEXT
+          )
+        ''');
+
+        // 4. units
+        await _db!.execute('''
+          CREATE TABLE IF NOT EXISTS units (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            btname TEXT,
+            account TEXT,
+            mac TEXT
           )
         ''');
       }
@@ -60,13 +86,13 @@ class DatabaseService {
     if (_db == null) return;
     final batch = _db!.batch();
     for (final r in results) {
-      final mac = r.device.id.id;
+      final mac = r.device.remoteId.str;
       final name = (decodedNames != null && decodedNames.containsKey(mac))
           ? decodedNames[mac]!
-          : (r.device.name.isNotEmpty
-              ? r.device.name
-              : r.advertisementData.localName.isNotEmpty
-                  ? r.advertisementData.localName
+          : (r.device.platformName.isNotEmpty
+              ? r.device.platformName
+              : r.advertisementData.advName.isNotEmpty
+                  ? r.advertisementData.advName
                   : 'Unknown device');
       batch.insert('findunit', {'name': name, 'macadress': mac},
           conflictAlgorithm: ConflictAlgorithm.ignore);
@@ -85,23 +111,63 @@ class DatabaseService {
     }
   }
 
-  // --- MYDEVICE TABLE OPERATIONS ---
+  // --- SELF_ACCOUNTS TABLE OPERATIONS ---
 
-  Future<void> saveMyDevice(String name, String macAdress, {int? battery}) async {
+  Future<void> saveSelfAccount({
+    required String id,
+    required String name,
+    required String email,
+    String? phone,
+    String? password,
+    String? birthdate,
+    String? residence,
+  }) async {
     if (_db == null) return;
     try {
-      // Avoid duplicates: check if this macadress is already registered
-      final existing = await _db!.query('mydevice', where: 'macadress = ?', whereArgs: [macAdress]);
+      await _db!.insert('self_accounts', {
+        'id': id,
+        'phone': phone ?? '',
+        'password': password ?? '',
+        'name': name,
+        'email': email,
+        'birthdate': birthdate ?? '',
+        'residence': residence ?? '',
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    } catch (_) {}
+  }
+
+  Future<Map<String, dynamic>?> getSelfAccount() async {
+    if (_db == null) return null;
+    try {
+      final list = await _db!.query('self_accounts', limit: 1);
+      if (list.isNotEmpty) {
+        return list[0];
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // --- SELF_UNITS TABLE OPERATIONS (Own Devices) ---
+
+  Future<void> saveMyDevice(String name, String macAdress, {int? battery, String? password}) async {
+    if (_db == null) return;
+    try {
+      final existing = await _db!.query('self_units', where: 'macadress = ?', whereArgs: [macAdress]);
       if (existing.isEmpty) {
-        await _db!.insert('mydevice', {
-          'name': name,
+        await _db!.insert('self_units', {
+          'btname': name,
           'macadress': macAdress,
           'battery': battery,
+          'password': password ?? '',
+          'version': 1,
+          'lost': 0,
+          'faulty': 0,
         }, conflictAlgorithm: ConflictAlgorithm.replace);
       } else {
-        await _db!.update('mydevice', {
-          'name': name,
+        await _db!.update('self_units', {
+          'btname': name,
           'battery': battery,
+          if (password != null) 'password': password,
         }, where: 'macadress = ?', whereArgs: [macAdress]);
       }
     } catch (_) {}
@@ -110,7 +176,19 @@ class DatabaseService {
   Future<List<Map<String, dynamic>>> loadMyDevices() async {
     if (_db == null) return [];
     try {
-      return await _db!.query('mydevice');
+      final list = await _db!.query('self_units');
+      return list.map((item) {
+        return {
+          'id': item['id'],
+          'name': item['btname'], // map to legacy 'name'
+          'macadress': item['macadress'], // map to legacy 'macadress'
+          'battery': item['battery'],
+          'password': item['password'],
+          'version': item['version'],
+          'lost': item['lost'],
+          'faulty': item['faulty'],
+        };
+      }).toList();
     } catch (_) {
       return [];
     }
@@ -119,22 +197,37 @@ class DatabaseService {
   Future<void> deleteMyDevice(int id) async {
     if (_db == null) return;
     try {
-      await _db!.delete('mydevice', where: 'id = ?', whereArgs: [id]);
+      await _db!.delete('self_units', where: 'id = ?', whereArgs: [id]);
     } catch (_) {}
   }
 
-  // --- MYMEETENG TABLE OPERATIONS ---
+  // --- UNITS & ACCOUNTS TABLE OPERATIONS (Met Devices) ---
 
   Future<void> saveMetDevice(String name, String mac, String ownerId) async {
     if (_db == null) return;
     try {
-      // Avoid duplicates: check if this mac is already registered
-      final existing = await _db!.query('mymeeteng', where: 'mac = ?', whereArgs: [mac]);
-      if (existing.isEmpty) {
-        await _db!.insert('mymeeteng', {
-          'name': name,
+      // 1. Save / update account
+      final existingAccount = await _db!.query('accounts', where: 'id = ?', whereArgs: [ownerId]);
+      if (existingAccount.isEmpty) {
+        await _db!.insert('accounts', {
+          'id': ownerId,
+          'name': 'Пользователь $ownerId',
+          'active': 1,
+          'sympathy': 0,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      } else {
+        await _db!.update('accounts', {
+          'active': 1,
+        }, where: 'id = ?', whereArgs: [ownerId]);
+      }
+
+      // 2. Save unit
+      final existingUnit = await _db!.query('units', where: 'mac = ?', whereArgs: [mac]);
+      if (existingUnit.isEmpty) {
+        await _db!.insert('units', {
+          'btname': name,
+          'account': ownerId,
           'mac': mac,
-          'owner_id': ownerId,
         }, conflictAlgorithm: ConflictAlgorithm.replace);
       }
     } catch (_) {}
@@ -143,7 +236,21 @@ class DatabaseService {
   Future<List<Map<String, dynamic>>> loadMetDevices() async {
     if (_db == null) return [];
     try {
-      return await _db!.query('mymeeteng');
+      final list = await _db!.rawQuery('''
+        SELECT u.id, u.btname, u.mac, u.account as owner_id, a.name as owner_name, a.sympathy
+        FROM units u
+        LEFT JOIN accounts a ON u.account = a.id
+      ''');
+      return list.map((item) {
+        return {
+          'id': item['id'],
+          'name': item['btname'], // map to legacy 'name'
+          'mac': item['mac'],
+          'owner_id': item['owner_id'] ?? 'N/A',
+          'owner_name': item['owner_name'] ?? 'Пользователь ${item['owner_id']}',
+          'sympathy': item['sympathy'] ?? 0,
+        };
+      }).toList();
     } catch (_) {
       return [];
     }
@@ -152,10 +259,19 @@ class DatabaseService {
   Future<void> deleteMetDevice(int id) async {
     if (_db == null) return;
     try {
-      await _db!.delete('mymeeteng', where: 'id = ?', whereArgs: [id]);
+      final unitList = await _db!.query('units', columns: ['account'], where: 'id = ?', whereArgs: [id]);
+      if (unitList.isNotEmpty) {
+        final accountId = unitList[0]['account'];
+        await _db!.delete('units', where: 'id = ?', whereArgs: [id]);
+        if (accountId != null) {
+          final remaining = await _db!.query('units', where: 'account = ?', whereArgs: [accountId]);
+          if (remaining.isEmpty) {
+            await _db!.delete('accounts', where: 'id = ?', whereArgs: [accountId]);
+          }
+        }
+      }
     } catch (_) {}
   }
 
   bool get isReady => _db != null;
 }
-

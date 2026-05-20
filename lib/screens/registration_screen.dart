@@ -16,6 +16,7 @@ class RegistrationScreen extends StatefulWidget {
 
 class _RegistrationScreenState extends State<RegistrationScreen> {
   final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _supabase = SupabaseService();
@@ -25,6 +26,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   Future<void> _register() async {
     final name = _nameController.text.trim();
+    final phone = _phoneController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
@@ -61,11 +63,32 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       // 3. Привязываем устройство к новому аккаунту
       await _supabase.updateUnitAccountId(widget.deviceName!, userId);
 
-      // 4. Сохраняем в локальную базу данных в таблицу mydevice
+      // 4. Сохраняем в локальную базу данных в таблицы self_accounts и self_units
       final db = DatabaseService();
       await db.init();
       final batteryVal = widget.batteryLevel != null ? int.tryParse(widget.batteryLevel!) : null;
-      await db.saveMyDevice(widget.deviceName!, widget.macAddress ?? '', battery: batteryVal);
+      
+      // Get unit pairing code from Supabase in plain text for self_units
+      String pairingCode = '';
+      try {
+        final code = await _supabase.getUnitPairingCode(widget.deviceName!);
+        if (code != null) pairingCode = code;
+      } catch (_) {}
+
+      await db.saveSelfAccount(
+        id: userId,
+        name: name,
+        email: email,
+        phone: phone,
+        password: password,
+      );
+
+      await db.saveMyDevice(
+        widget.deviceName!,
+        widget.macAddress ?? '',
+        battery: batteryVal,
+        password: pairingCode,
+      );
 
       setState(() => _statusMessage = 'Регистрация прошла успешно. Устройство привязано.');
 
@@ -117,6 +140,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               TextField(
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: 'Имя', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: 'Телефон', border: OutlineInputBorder()),
               ),
               const SizedBox(height: 16),
               TextField(
